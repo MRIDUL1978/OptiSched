@@ -4,9 +4,14 @@
 #include<algorithm>
 #include<iomanip>
 #include<queue>
+#include<chrono>
+#include<random>
+#include<cctype>
 #include "Process.h"
 
 using namespace std;
+
+const int CONTEXT_SWITCH_PENALTY = 1;
 
 bool cmp (const Process &a, const  Process &b) {
   if(a.arrivalTime == b.arrivalTime) return a.id < b.id;
@@ -20,6 +25,8 @@ void FCFS(vector<Process>& processes) {
     for(auto &it : processes) {
       if(currentTime < it.arrivalTime) currentTime = it.arrivalTime;
 
+      currentTime += CONTEXT_SWITCH_PENALTY;
+
       it.startTime = currentTime;
       it.completionTime = currentTime + it.burstTime;
       it.turnaroundTime = it.completionTime - it.arrivalTime;
@@ -30,16 +37,18 @@ void FCFS(vector<Process>& processes) {
 }
 
 struct compareBurstTime {
-  bool operator()(const Process* a, const Process* b) {
-    if(a->burstTime == b->burstTime) return a->arrivalTime > b->arrivalTime;
-    return a->burstTime > b->burstTime;
+  const vector<Process>* procs;
+  compareBurstTime(const vector<Process>* p) : procs(p) {}
+  bool operator()(int a , int b) {
+    if((*procs)[a].burstTime == (*procs)[b].burstTime) return (*procs)[a].arrivalTime > (*procs)[b].arrivalTime;
+    return (*procs)[a].burstTime > (*procs)[b].burstTime;
   }
 };
 
 void SJF(vector<Process>& processes) {
   sort(processes.begin(), processes.end(), cmp);
 
-  priority_queue<Process*, vector<Process*>, compareBurstTime> readyQueue;
+  priority_queue<int, vector<int>, compareBurstTime> readyQueue{compareBurstTime(&processes)};  
 
   int currentTime = 0;
   int cnt = 0;
@@ -48,7 +57,7 @@ void SJF(vector<Process>& processes) {
 
   while(cnt < n) {
     while(index < n && processes[index].arrivalTime <= currentTime) {
-      readyQueue.push(&processes[index]);
+      readyQueue.push(index);
       index++;
     }
 
@@ -57,17 +66,21 @@ void SJF(vector<Process>& processes) {
       continue;
     }
 
-    Process* currentProcess = readyQueue.top();
+    int pIdx = readyQueue.top();
     readyQueue.pop();
 
-    currentProcess->startTime = (currentTime > currentProcess->arrivalTime) ? currentTime :  
-    currentProcess->arrivalTime;
+    Process &currentProcess = processes[pIdx];
 
-    currentProcess->completionTime = currentTime + currentProcess->burstTime;
-    currentProcess->turnaroundTime = currentProcess->completionTime - currentProcess->arrivalTime;
-    currentProcess->waitingTime = currentProcess->turnaroundTime - currentProcess->burstTime;
+    currentTime += CONTEXT_SWITCH_PENALTY;
 
-    currentTime = currentProcess->completionTime;
+    currentProcess.startTime = (currentTime > currentProcess.arrivalTime) ? currentTime :  
+    currentProcess.arrivalTime;
+
+    currentProcess.completionTime = currentTime + currentProcess.burstTime;
+    currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
+    currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
+
+    currentTime = currentProcess.completionTime;
     cnt++;
   }
   
@@ -76,7 +89,7 @@ void SJF(vector<Process>& processes) {
 void RR(vector<Process>& processes, int timeQuantum) {
   sort(processes.begin(), processes.end(), cmp);
 
-  queue<Process*> readyQueue;
+  queue<int> readyQueue;
   int currentTime = 0;
   int cnt = 0;
   int n = processes.size();
@@ -85,7 +98,7 @@ void RR(vector<Process>& processes, int timeQuantum) {
   if(n > 0) {
     currentTime = processes[0].arrivalTime;
     while(index < n && processes[index].arrivalTime <= currentTime) {
-      readyQueue.push(&processes[index]);
+      readyQueue.push(index);
       index++;
     }
   }
@@ -94,30 +107,35 @@ void RR(vector<Process>& processes, int timeQuantum) {
     if(readyQueue.empty()) {
       currentTime = processes[index].arrivalTime;
       while(index < n && processes[index].arrivalTime <= currentTime) {
-        readyQueue.push(&processes[index]);
+        readyQueue.push(index);
         index++;
       }
     }
 
-    Process* currentProcess = readyQueue.front();
+    int pIdx = readyQueue.front();
     readyQueue.pop();
 
-    if(currentProcess->startTime == -1) currentProcess->startTime = currentTime;
+    Process &currentProcess = processes[pIdx];
 
-    int execTime = min(currentProcess->remainingTime, timeQuantum);
-    currentProcess += execTime;
-    currentProcess->remainingTime -= execTime;
+    currentTime += CONTEXT_SWITCH_PENALTY;
+
+    if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
+
+    int execTime = min(currentProcess.remainingTime, timeQuantum);
+    currentTime += execTime;
+    currentProcess.remainingTime -= execTime;
+
 
     while(index < n && processes[index].arrivalTime <= currentTime) {
-      readyQueue.push(&processes[index]);
+      readyQueue.push(index);
       index++;
     }
 
-    if(currentProcess->remainingTime > 0 ) readyQueue.push(currentProcess);
+    if(currentProcess.remainingTime > 0 ) readyQueue.push(pIdx);
     else {
-      currentProcess->completionTime = currentTime;
-      currentProcess->turnaroundTime = currentProcess->completionTime - currentProcess->arrivalTime;
-      currentProcess->waitingTime = currentProcess->turnaroundTime - currentProcess->burstTime;
+      currentProcess.completionTime = currentTime;
+      currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
+      currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
       cnt++;
     }
   }
@@ -126,7 +144,7 @@ void RR(vector<Process>& processes, int timeQuantum) {
 void MLFQ(vector<Process>& processes) {
   sort(processes.begin(), processes.end(), cmp);
 
-  queue<Process*> q0, q1, q2;
+  queue<int> q0, q1, q2;
   int topQueueQuantum0  = 2;
   int topQueueQuantum1 = 4;
 
@@ -134,9 +152,9 @@ void MLFQ(vector<Process>& processes) {
   int n = processes.size(), index = 0;
 
   if(n > 0) {
-    currentTime = processes[index].arrivalTime;
+    currentTime = processes[0].arrivalTime;
     while(index < n && processes[index].arrivalTime <= currentTime) {
-      q0.push(&processes[index]);
+      q0.push(index);
       index++;
     }
   }
@@ -145,62 +163,66 @@ void MLFQ(vector<Process>& processes) {
      if(q0.empty() && q1.empty() && q2.empty()) {
       currentTime = processes[index].arrivalTime;
       while(index < n && processes[index].arrivalTime <= currentTime) {
-        q0.push(&processes[index]);
+        q0.push(index);
         index++;
       }
      }
 
-     Process* currentProcess = nullptr;
+     int pIdx = -1;
      int currentLevel = 0;
-     int tq = 0;
+     int tq = 0;  
 
      if(!q0.empty()) {
-      currentProcess = q0.front();
+      pIdx = q0.front();
       q0.pop();
       currentLevel = 0;
       tq = topQueueQuantum0;
      } else if(!q1.empty()) {
-      currentProcess = q1.front();
+      pIdx = q1.front();
       q1.pop();
       currentLevel = 1;
       tq = topQueueQuantum1;
      } else {
-      currentProcess = q2.front();
+      pIdx = q2.front();
       q2.pop();
       currentLevel = 2;
-      tq = currentProcess->remainingTime;
      }
 
-     if(currentProcess->startTime == -1) currentProcess->startTime = currentTime;
+     Process &currentProcess = processes[pIdx];
+
+     if(currentLevel == 2) tq = currentProcess.remainingTime;
+
+     currentTime += CONTEXT_SWITCH_PENALTY; 
+     if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
 
      int execTime = 0;
      if(currentLevel == 2 && index < n) {
       int timeUntilNextArrival = processes[index].arrivalTime - currentTime;
-      if(timeUntilNextArrival > 0 && timeUntilNextArrival < currentProcess->remainingTime) {
+      if(timeUntilNextArrival > 0 && timeUntilNextArrival < currentProcess.remainingTime) {
         execTime = timeUntilNextArrival;
       } else {
-        execTime = currentProcess->remainingTime;
+        execTime = currentProcess.remainingTime;
       }
      } else {
-      execTime = min(currentProcess->remainingTime, tq);
+      execTime = min(currentProcess.remainingTime, tq);
      }
 
      currentTime += execTime;
-     currentProcess->remainingTime -= execTime;
+     currentProcess.remainingTime -= execTime;
 
      while(index < n && processes[index].arrivalTime <= currentTime) {
-      q0.push(&processes[index]);
+      q0.push(index);
       index++;
      }
 
-     if(currentProcess->remainingTime > 0) {
-      if(currentLevel == 0) q1.push(currentProcess);
-      else if(currentLevel == 1) q2.push(currentProcess);
-      else q2.push(currentProcess);
+     if(currentProcess.remainingTime > 0) {
+      if(currentLevel == 0) q1.push(pIdx);
+      else if(currentLevel == 1) q2.push(pIdx);
+      else q2.push(pIdx);
      } else {
-      currentProcess->completionTime = currentTime;
-      currentProcess->turnaroundTime = currentProcess->completionTime - currentProcess->arrivalTime;
-      currentProcess->waitingTime = currentProcess->turnaroundTime - currentProcess->burstTime;
+      currentProcess.completionTime = currentTime;
+      currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
+      currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
       cnt++;
      }
   }
@@ -218,10 +240,78 @@ void simulateAlgorithm(string algorithm, vector<Process>& processes, int timeQua
   }
 }
 
+void runBenchmark(int numProcesses, int timeQuantum) {
+    vector<Process> originalProcesses;
+    mt19937 rng(42); 
+    uniform_int_distribution<int> arrivalDist(0, numProcesses / 2);
+    uniform_int_distribution<int> burstDist(1, 100);
+    uniform_int_distribution<int> prioDist(0, 4);
+    
+    // Add a distribution for I/O burst times (5ms to 25ms)
+    uniform_int_distribution<int> ioDist(5, 25); 
+
+    for (int i = 0; i < numProcesses; ++i) {
+        string id = "P" + to_string(i + 1);
+        Process p(id, arrivalDist(rng), burstDist(rng), prioDist(rng));
+        
+        // --- I/O BURST LOGIC ---
+        // Flag 10% of the workload as I/O-bound to simulate hardware delays
+        if (i % 10 == 0) { 
+            p.ioBurstTime = ioDist(rng);
+        }
+        
+        originalProcesses.push_back(p);
+    }
+
+    string algos[] = {"FCFS", "SJF", "RR", "MLFQ"};
+    
+    cout << "{\n  \"mode\": \"benchmark\",\n  \"numProcesses\": " << numProcesses << ",\n  \"results\": [\n";
+    
+    for (int i = 0; i < 4; ++i) {
+        vector<Process> pCopy = originalProcesses;
+        
+        auto start = chrono::high_resolution_clock::now();
+        simulateAlgorithm(algos[i], pCopy, timeQuantum);
+        auto end = chrono::high_resolution_clock::now();
+        double execTimeMs = chrono::duration<double, std::milli>(end - start).count();
+        
+        double totalWait = 0, totalTurnaround = 0;
+        for (const auto& p : pCopy) {
+            totalWait += p.waitingTime;
+            totalTurnaround += p.turnaroundTime;
+        }
+        double avgWait = totalWait / numProcesses;
+        double avgTurnaround = totalTurnaround / numProcesses;
+        
+        cout << "    {\n      \"algorithm\": \"" << algos[i] << "\",\n";
+        cout << "      \"avgWait\": " << fixed << setprecision(2) << avgWait << ",\n";
+        cout << "      \"avgTurnaround\": " << avgTurnaround << ",\n";
+        cout << "      \"engineExecTimeMs\": " << execTimeMs << "\n    }" << (i == 3 ? "" : ",") << "\n";
+    }
+    cout << "  ]\n}\n";
+}
+
+
+
 int main() {
+  // Read mode from user
+  string mode;
+  if(!(cin >> mode)) return 0;
+
+  string cleanMode = "";
+  for(char c : mode) {
+    if (isalnum(c)) cleanMode += toupper(c);
+  }
+
+  if(cleanMode == "BENCHMARK") {
+    int numProcesses, timeQuantum;
+    cin >> numProcesses >> timeQuantum;
+    runBenchmark(numProcesses, timeQuantum);
+    return 0;
+  }
+
 //  Read algorithm choice from user
-  string algorithm;
-  if(!(cin >> algorithm)) return 0;
+  string algorithm = mode;
 
   int timeQuantum = 4; // default fallback
   if(algorithm == "RR") {

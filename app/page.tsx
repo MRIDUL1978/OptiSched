@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Play, Plus, Trash2, Cpu, Clock, Activity, Server } from 'lucide-react';
+import { Play, Plus, Trash2, Cpu, Clock, Activity, Server, Zap } from 'lucide-react';
 
 // Interfaces for our data structures
 interface Process {
@@ -24,65 +24,6 @@ interface Metrics {
   avgTurnaround: number;
 }
 
-// NOTE: This mock engine is just to make this UI preview functional in the browser. 
-// In your real Next.js app, this logic happens in your C++ file.
-const runMockSimulation = (processes: Process[], algo: string, tq: number) => {
-  let sorted = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
-  let results: SimulationResult[] = [];
-  let currentTime = 0;
-
-  if (algo === 'FCFS') {
-    sorted.forEach(p => {
-      if (currentTime < p.arrivalTime) currentTime = p.arrivalTime;
-      const start = currentTime;
-      const comp = start + p.burstTime;
-      results.push({
-        id: p.id, startTime: start, completionTime: comp,
-        turnaroundTime: comp - p.arrivalTime,
-        waitingTime: (comp - p.arrivalTime) - p.burstTime
-      });
-      currentTime = comp;
-    });
-  } else if (algo === 'SJF') {
-    // Simplified Non-Preemptive SJF for preview
-    let remaining = [...sorted];
-    while (remaining.length > 0) {
-      let available = remaining.filter(p => p.arrivalTime <= currentTime);
-      if (available.length === 0) {
-        currentTime = remaining[0].arrivalTime;
-        available = remaining.filter(p => p.arrivalTime <= currentTime);
-      }
-      available.sort((a, b) => a.burstTime - b.burstTime);
-      const p = available[0];
-      const start = currentTime;
-      const comp = start + p.burstTime;
-      results.push({
-        id: p.id, startTime: start, completionTime: comp,
-        turnaroundTime: comp - p.arrivalTime, waitingTime: (comp - p.arrivalTime) - p.burstTime
-      });
-      currentTime = comp;
-      remaining = remaining.filter(r => r.id !== p.id);
-    }
-  } else {
-    // Fallback for RR and MLFQ in preview (acts like FCFS for simplicity here)
-    sorted.forEach(p => {
-      if (currentTime < p.arrivalTime) currentTime = p.arrivalTime;
-      const start = currentTime;
-      const comp = start + p.burstTime;
-      results.push({
-        id: p.id, startTime: start, completionTime: comp,
-        turnaroundTime: comp - p.arrivalTime, waitingTime: (comp - p.arrivalTime) - p.burstTime
-      });
-      currentTime = comp;
-    });
-  }
-
-  const avgWait = results.reduce((acc, r) => acc + r.waitingTime, 0) / results.length;
-  const avgTurnaround = results.reduce((acc, r) => acc + r.turnaroundTime, 0) / results.length;
-
-  return { results, metrics: { avgWait, avgTurnaround } };
-};
-
 export default function CPUScheduler() {
   const [processes, setProcesses] = useState<Process[]>([
     { id: 'P1', arrivalTime: 0, burstTime: 5, priority: 1 },
@@ -90,14 +31,17 @@ export default function CPUScheduler() {
     { id: 'P3', arrivalTime: 2, burstTime: 8, priority: 1 },
   ]);
   
-  const [algorithm, setAlgorithm] = useState('FCFS');
-  const [timeQuantum, setTimeQuantum] = useState(4);
+  const [algorithm, setAlgorithm] = useState('FCFS')
+  const [timeQuantum, setTimeQuantum] = useState(4)
   const [simulationData, setSimulationData] = useState<{results: SimulationResult[], metrics: Metrics} | null>(null);
+
+  const [benchmarkData, setBenchmarkData] = useState<any>(null)
+  const [isBenchmarking, setIsBenchmarking] = useState(false)
 
   // Form State
   const [newP, setNewP] = useState({ arrival: 0, burst: 1, priority: 1 });
 
-  const handleAddProcess = () => {
+  const handleAddProcess = async () => {
     const nextId = `P${processes.length + 1}`;
     setProcesses([...processes, { id: nextId, arrivalTime: newP.arrival, burstTime: newP.burst, priority: newP.priority }]);
   };
@@ -112,6 +56,7 @@ export default function CPUScheduler() {
       const res = await fetch('api/simulate',{
         method: 'POST',
         body: JSON.stringify({
+          mode: 'simulate',
           algorithm,
           processes,
           timeQuantum
@@ -138,7 +83,44 @@ export default function CPUScheduler() {
       console.log("Simulation Fialed.",err)
       alert("failed to connect to backedn API")
     }
-  };
+  }
+
+  const handleStressTest = async () => {
+    setIsBenchmarking(true)
+    setBenchmarkData(null)
+    try {
+      const res = await fetch('api/simulate',{
+        method: 'POST',
+        body: JSON.stringify({
+          mode: 'benchmark',
+          numProcesses: 10000,
+          timeQuantum: 4
+        })
+      })
+
+      const data = await res.json()
+
+      if(!res.ok) {
+        console.log(`Backend Error: ${data.error}`)
+        alert(`Backend Error: ${data.error}`)
+        return;
+      }
+
+      if(!data.numProcesses) {
+        console.log("Error: The C++ engine returned the wrong data format.")
+        alert(`Error: The C++ engine returned the wrong data format.`)
+        return;
+      }
+
+      setBenchmarkData(data)
+    } catch (err) {
+      console.log("Benchmark Failed", err)
+      alert("Failed to run stress test")
+    } finally {
+      setIsBenchmarking(false)
+    }
+  }
+
 
   const maxTime = useMemo(() => {
     if (!simulationData) return 0;
@@ -178,6 +160,16 @@ export default function CPUScheduler() {
                 title="Time Quantum"
               />
             )}
+
+            <button 
+              onClick={handleStressTest}
+              disabled={isBenchmarking}
+              className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors"
+            >
+              <Zap size={18} /> {isBenchmarking ? 'Testing...' : 'Stress Test'}
+            </button>
+
+
             <button 
               onClick={handleSimulate}
               className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors"
@@ -284,6 +276,49 @@ export default function CPUScheduler() {
                 </div>
               )}
             </div>
+
+              {/* Benchmark Dashboard */}
+            {benchmarkData && (
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 animate-in fade-in slide-in-from-bottom-4">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <Zap className="text-purple-400" />
+                    Stress Test Results
+                  </h2>
+                  <span className="bg-purple-500/20 text-purple-300 text-xs px-3 py-1 rounded-full border border-purple-500/30">
+                    N = {benchmarkData.numProcesses.toLocaleString()} Processes
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {benchmarkData.results.map((res: any, idx: number) => (
+                    <div key={idx} className="bg-slate-900 border border-slate-700 rounded-lg p-4 relative overflow-hidden group hover:border-purple-500/50 transition-colors">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-linear-gradient-to-r from-purple-500 to-blue-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                      <h3 className="font-bold text-lg text-white mb-3">{res.algorithm}</h3>
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-400">Avg Wait:</span>
+                          <span className="font-medium text-blue-400">{res.avgWait}ms</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-400">Avg Turn:</span>
+                          <span className="font-medium text-green-400">{res.avgTurnaround.toFixed(2)}ms</span>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+                        <span className="text-slate-500">C++ Core Time</span>
+                        <span className="font-mono text-purple-400 bg-purple-500/10 px-2 py-1 rounded">
+                          {res.engineExecTimeMs.toFixed(3)} ms
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
 
           </div>
         </div>

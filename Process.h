@@ -16,6 +16,11 @@ struct Process {
   int turnaroundTime;
   int waitingTime;
 
+  //for context- switch-penalties
+  int ioBurstTime;
+  bool isBlocked;
+  int blockedUntil;
+
   Process(string id, int arrivalTime, int burstTime, int priority = 0) {
     this->id = id;
     this->arrivalTime = arrivalTime;
@@ -26,6 +31,9 @@ struct Process {
     this->completionTime = 0;
     this->turnaroundTime = 0;
     this->waitingTime = 0;
+    this->ioBurstTime = 0;
+    this->isBlocked = false;
+    this->blockedUntil = 0;
   }
 };
 
