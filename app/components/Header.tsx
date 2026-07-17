@@ -32,6 +32,7 @@ const Header = ({ algorithm, setAlgorithm, timeQuantum, setTimeQuantum, isBenchm
           >
             <option value="FCFS">First-Come, First-Served (FCFS)</option>
             <option value="SJF">Shortest Job First (SJF)</option>
+            <option value="PRIORITY">Priority Scheduling (PRIORITY)</option>
             <option value="RR">Round Robin (RR)</option>
             <option value="MLFQ">Multilevel Feedback Queue (MLFQ)</option>
           </select>

@@ -13,12 +13,26 @@ using namespace std;
 
 const int CONTEXT_SWITCH_PENALTY = 1;
 
+struct GanttSegment {
+    string id;
+    int startTime;
+    int completionTime;
+};
+
+void addGanttSegment(vector<GanttSegment>& gantt, string id, int startTime, int completionTime) {
+    if (!gantt.empty() && gantt.back().id == id && gantt.back().completionTime == startTime) {
+        gantt.back().completionTime = completionTime;
+    } else {
+        gantt.push_back({id, startTime, completionTime});
+    }
+}
+
 bool cmp (const Process &a, const  Process &b) {
   if(a.arrivalTime == b.arrivalTime) return a.id < b.id;
   return a.arrivalTime < b.arrivalTime;
 }
 
-void FCFS(vector<Process>& processes) {
+void FCFS(vector<Process>& processes, vector<GanttSegment>& gantt) {
     sort(processes.begin(), processes.end(), cmp);
     
     int currentTime = 0;
@@ -29,6 +43,7 @@ void FCFS(vector<Process>& processes) {
 
       it.startTime = currentTime;
       it.completionTime = currentTime + it.burstTime;
+      addGanttSegment(gantt, it.id, it.startTime, it.completionTime);
       it.turnaroundTime = it.completionTime - it.arrivalTime;
       it.waitingTime = it.turnaroundTime - it.burstTime;
 
@@ -45,7 +60,7 @@ struct compareBurstTime {
   }
 };
 
-void SJF(vector<Process>& processes) {
+void SJF(vector<Process>& processes , vector<GanttSegment>& gantt) {
   sort(processes.begin(), processes.end(), cmp);
 
   priority_queue<int, vector<int>, compareBurstTime> readyQueue{compareBurstTime(&processes)};  
@@ -77,6 +92,7 @@ void SJF(vector<Process>& processes) {
     currentProcess.arrivalTime;
 
     currentProcess.completionTime = currentTime + currentProcess.burstTime;
+    addGanttSegment(gantt, currentProcess.id, currentProcess.startTime, currentProcess.completionTime);
     currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
     currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
 
@@ -86,7 +102,77 @@ void SJF(vector<Process>& processes) {
   
 }
 
-void RR(vector<Process>& processes, int timeQuantum) {
+void PRIORITY(vector<Process> &processes, vector<GanttSegment>& gantt) {
+  int n = processes.size();
+  sort(processes.begin(), processes.end(), cmp);
+  auto ComaprePriority = [&processes](int a, int b) {
+    if(processes[a].priority == processes[b].priority) return processes[a].arrivalTime > processes[b].arrivalTime;
+    return processes[a].priority > processes[b].priority;
+  };
+
+  priority_queue<int, vector<int>, decltype(ComaprePriority)> readyQueue{ComaprePriority};  
+
+  int currentTime = 0;
+  int cnt = 0;
+  int index = 0;
+  int currentRunning = -1;
+
+  while(cnt < n) {
+    while(index < n && processes[index].arrivalTime <= currentTime) {
+      readyQueue.push(index);
+      index++;
+    }
+
+    if(readyQueue.empty() && currentRunning == -1) {
+      currentTime = processes[index].arrivalTime;
+      continue;
+    }
+
+    int bestProcess = currentRunning;
+    if (!readyQueue.empty()) {
+          int topProcess = readyQueue.top();
+          if (currentRunning == -1) {
+                bestProcess = topProcess;
+          } else if (processes[topProcess].priority < processes[currentRunning].priority) {
+              bestProcess = topProcess; // Preempt!
+          }
+    }
+
+    if (bestProcess != currentRunning) {
+            if (currentRunning != -1) readyQueue.push(currentRunning);
+            currentRunning = -1;
+            currentTime += CONTEXT_SWITCH_PENALTY;
+            
+            while (index < n && processes[index].arrivalTime <= currentTime) {
+                readyQueue.push(index);
+                index++;
+            }
+            
+            bestProcess = readyQueue.top();
+            readyQueue.pop();
+            currentRunning = bestProcess;
+      }
+
+    Process &currentProcess = processes[currentRunning];
+    if(currentProcess.startTime == -1) {
+      currentProcess.startTime =  currentTime;
+    }
+
+    addGanttSegment(gantt, currentProcess.id, currentTime ,currentTime + 1);
+    currentTime++;
+    currentProcess.remainingTime--;
+
+    if(currentProcess.remainingTime == 0) {
+      currentProcess.completionTime = currentTime;
+      currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
+      currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
+      cnt++;
+      currentRunning = -1;
+    } 
+  }
+}
+
+void RR(vector<Process>& processes, int timeQuantum, vector<GanttSegment>& gantt) {
   sort(processes.begin(), processes.end(), cmp);
 
   queue<int> readyQueue;
@@ -94,6 +180,7 @@ void RR(vector<Process>& processes, int timeQuantum) {
   int cnt = 0;
   int n = processes.size();
   int index = 0;
+  int prevIdx = -1;
 
   if(n > 0) {
     currentTime = processes[0].arrivalTime;
@@ -117,14 +204,21 @@ void RR(vector<Process>& processes, int timeQuantum) {
 
     Process &currentProcess = processes[pIdx];
 
-    currentTime += CONTEXT_SWITCH_PENALTY;
+     if (pIdx != prevIdx) {
+            currentTime += CONTEXT_SWITCH_PENALTY; 
+            while (index < n && processes[index].arrivalTime <= currentTime) {
+                readyQueue.push(index);
+                index++;
+            }
+      }
 
-    if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
+      if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
 
-    int execTime = min(currentProcess.remainingTime, timeQuantum);
-    currentTime += execTime;
-    currentProcess.remainingTime -= execTime;
+      int execTime = min(currentProcess.remainingTime, timeQuantum);
+      addGanttSegment(gantt, currentProcess.id, currentTime, currentTime + execTime);
 
+      currentTime += execTime;
+      currentProcess.remainingTime -= execTime;
 
     while(index < n && processes[index].arrivalTime <= currentTime) {
       readyQueue.push(index);
@@ -137,11 +231,14 @@ void RR(vector<Process>& processes, int timeQuantum) {
       currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
       currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
       cnt++;
+      prevIdx = -1; // Reset prevIdx since the process has completed
+      continue; // Skip updating prevIdx since the process has completed
     }
+    prevIdx = pIdx; // Update prevIdx to the current process index
   }
 }
 
-void MLFQ(vector<Process>& processes) {
+void MLFQ(vector<Process>& processes, vector<GanttSegment>& gantt) {
   sort(processes.begin(), processes.end(), cmp);
 
   queue<int> q0, q1, q2;
@@ -150,6 +247,7 @@ void MLFQ(vector<Process>& processes) {
 
   int currentTime = 0, cnt = 0;
   int n = processes.size(), index = 0;
+  int prevIdx = -1; // Track the index of the previously executed process
 
   if(n > 0) {
     currentTime = processes[0].arrivalTime;
@@ -192,9 +290,15 @@ void MLFQ(vector<Process>& processes) {
 
      if(currentLevel == 2) tq = currentProcess.remainingTime;
 
-     currentTime += CONTEXT_SWITCH_PENALTY; 
-     if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
+     if(pIdx != prevIdx) {
+        currentTime += CONTEXT_SWITCH_PENALTY; 
+        while(index < n && processes[index].arrivalTime <= currentTime) {
+          q0.push(index);
+          index++;
+        }
+     }
 
+     if(currentProcess.startTime == -1) currentProcess.startTime = currentTime;
      int execTime = 0;
      if(currentLevel == 2 && index < n) {
       int timeUntilNextArrival = processes[index].arrivalTime - currentTime;
@@ -207,6 +311,7 @@ void MLFQ(vector<Process>& processes) {
       execTime = min(currentProcess.remainingTime, tq);
      }
 
+     addGanttSegment(gantt, currentProcess.id, currentTime, currentTime + execTime);
      currentTime += execTime;
      currentProcess.remainingTime -= execTime;
 
@@ -224,19 +329,24 @@ void MLFQ(vector<Process>& processes) {
       currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
       currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
       cnt++;
+      prevIdx = -1; // Reset prevIdx since the process has completed  
      }
+     prevIdx = pIdx; // Update prevIdx to the current process index
   }
 }
 
-void simulateAlgorithm(string algorithm, vector<Process>& processes, int timeQuantum) {
+void simulateAlgorithm(string algorithm, vector<Process>& processes, int timeQuantum, vector<GanttSegment>& gantt) {
   if(algorithm == "FCFS") {
-    FCFS(processes);
+    FCFS(processes,gantt);
   } else if (algorithm == "SJF") {
-    SJF(processes);
+    SJF(processes, gantt);
   } else if (algorithm == "RR") {
-    RR(processes, timeQuantum);
+    RR(processes, timeQuantum, gantt);
   } else if (algorithm == "MLFQ") {
-    MLFQ(processes);
+    MLFQ(processes, gantt);
+  }
+  else if(algorithm == "PRIORITY") {
+    PRIORITY(processes, gantt);
   }
 }
 
@@ -245,33 +355,26 @@ void runBenchmark(int numProcesses, int timeQuantum) {
     mt19937 rng(42); 
     uniform_int_distribution<int> arrivalDist(0, numProcesses / 2);
     uniform_int_distribution<int> burstDist(1, 100);
-    uniform_int_distribution<int> prioDist(0, 4);
-    
-    // Add a distribution for I/O burst times (5ms to 25ms)
+    uniform_int_distribution<int> prioDist(1, 10); 
     uniform_int_distribution<int> ioDist(5, 25); 
 
     for (int i = 0; i < numProcesses; ++i) {
         string id = "P" + to_string(i + 1);
         Process p(id, arrivalDist(rng), burstDist(rng), prioDist(rng));
-        
-        // --- I/O BURST LOGIC ---
-        // Flag 10% of the workload as I/O-bound to simulate hardware delays
-        if (i % 10 == 0) { 
-            p.ioBurstTime = ioDist(rng);
-        }
-        
+        if (i % 10 == 0) p.ioBurstTime = ioDist(rng);
         originalProcesses.push_back(p);
     }
 
-    string algos[] = {"FCFS", "SJF", "RR", "MLFQ"};
+    string algos[] = {"FCFS", "SJF", "PRIORITY", "RR", "MLFQ"}; 
     
     cout << "{\n  \"mode\": \"benchmark\",\n  \"numProcesses\": " << numProcesses << ",\n  \"results\": [\n";
     
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         vector<Process> pCopy = originalProcesses;
+        vector<GanttSegment> dummyGantt; // We don't stream Gantt charts for benchmarks
         
         auto start = chrono::high_resolution_clock::now();
-        simulateAlgorithm(algos[i], pCopy, timeQuantum);
+        simulateAlgorithm(algos[i], pCopy, timeQuantum, dummyGantt);
         auto end = chrono::high_resolution_clock::now();
         double execTimeMs = chrono::duration<double, std::milli>(end - start).count();
         
@@ -280,13 +383,11 @@ void runBenchmark(int numProcesses, int timeQuantum) {
             totalWait += p.waitingTime;
             totalTurnaround += p.turnaroundTime;
         }
-        double avgWait = totalWait / numProcesses;
-        double avgTurnaround = totalTurnaround / numProcesses;
         
         cout << "    {\n      \"algorithm\": \"" << algos[i] << "\",\n";
-        cout << "      \"avgWait\": " << fixed << setprecision(2) << avgWait << ",\n";
-        cout << "      \"avgTurnaround\": " << avgTurnaround << ",\n";
-        cout << "      \"engineExecTimeMs\": " << execTimeMs << "\n    }" << (i == 3 ? "" : ",") << "\n";
+        cout << "      \"avgWait\": " << fixed << setprecision(2) << (totalWait / numProcesses) << ",\n";
+        cout << "      \"avgTurnaround\": " << (totalTurnaround / numProcesses) << ",\n";
+        cout << "      \"engineExecTimeMs\": " << execTimeMs << "\n    }" << (i == 4 ? "" : ",") << "\n";
     }
     cout << "  ]\n}\n";
 }
@@ -300,7 +401,7 @@ int main() {
 
   string cleanMode = "";
   for(char c : mode) {
-    if (isalnum(c)) cleanMode += toupper(c);
+    if (isalnum(c) || c == '_') cleanMode += toupper(c);
   }
 
   if(cleanMode == "BENCHMARK") {
@@ -311,7 +412,7 @@ int main() {
   }
 
 //  Read algorithm choice from user
-  string algorithm = mode;
+  string algorithm = cleanMode;
 
   int timeQuantum = 4; // default fallback
   if(algorithm == "RR") {
@@ -334,7 +435,8 @@ int main() {
   }
 
   // Run the algorithm
-  simulateAlgorithm(algorithm, processes , timeQuantum);
+  vector<GanttSegment> gantt;
+  simulateAlgorithm(algorithm, processes , timeQuantum, gantt);
 
   // calculate summary metrics 
   double totalWait = 0, totalTurnaround = 0;
@@ -347,27 +449,21 @@ int main() {
 
   // Output the results as a raw JSON string to standard output.
   // Node.js will parse this string directly into a JavaScript object.
-  cout << "{" << endl;
-  cout << "  \"algorithm\": \"" << algorithm << "\"," << endl;
-  cout << "  \"status\": \"success\"," << endl;
-  cout << "  \"metrics\": {" << endl;
-  cout << "    \"averageWaitingTime\": " << fixed << setprecision(2) << avgWait << "," << endl;
-  cout << "    \"averageTurnaroundTime\": " << avgTurnaround << endl;
-  cout << "  }," << endl;
-  cout << "  \"processes\": [" << endl;
-
-  for (size_t i = 0; i < processes.size(); ++i) {
-    cout << "    {" << endl;
-    cout << "      \"id\": \"" << processes[i].id << "\"," << endl;
-    cout << "      \"startTime\": " << processes[i].startTime << "," << endl;
-    cout << "      \"completionTime\": " << processes[i].completionTime << "," << endl;
-    cout << "      \"waitingTime\": " << processes[i].waitingTime << "," << endl;
-    cout << "      \"turnaroundTime\": " << processes[i].turnaroundTime << endl;
-    cout << "    }" << (i == processes.size() - 1 ? "" : ",") << endl;
-  }
-
-  cout << "  ]" << endl;
-  cout << "}" << endl;
+ cout << "{\n  \"algorithm\": \"" << algorithm << "\",\n  \"status\": \"success\",\n  \"metrics\": {\n";
+    cout << "    \"averageWaitingTime\": " << fixed << setprecision(2) << avgWait << ",\n";
+    cout << "    \"averageTurnaroundTime\": " << avgTurnaround << "\n  },\n  \"processes\": [\n";
+    
+    for (size_t i = 0; i < processes.size(); ++i) {
+        cout << "    {\n      \"id\": \"" << processes[i].id << "\",\n      \"startTime\": " << processes[i].startTime << ",\n";
+        cout << "      \"completionTime\": " << processes[i].completionTime << ",\n      \"waitingTime\": " << processes[i].waitingTime << ",\n";
+        cout << "      \"turnaroundTime\": " << processes[i].turnaroundTime << "\n    }" << (i == processes.size() - 1 ? "" : ",") << "\n";
+    }
+    cout << "  ],\n  \"gantt\": [\n";
+    for (size_t i = 0; i < gantt.size(); ++i) {
+        cout << "    {\n      \"id\": \"" << gantt[i].id << "\",\n      \"startTime\": " << gantt[i].startTime << ",\n";
+        cout << "      \"completionTime\": " << gantt[i].completionTime << "\n    }" << (i == gantt.size() - 1 ? "" : ",") << "\n";
+    }
+    cout << "  ]\n}\n";
 
   return 0;
 }

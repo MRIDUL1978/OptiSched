@@ -30,7 +30,14 @@ export interface BenchmarkData {
   results: BenchmarkResult[];
 }
 
+export interface GanttSegment {
+  id: string;
+  startTime: number;
+  completionTime: number;
+}
+
 export interface SimulationData {
   results: SimulationResult[];
+  gantt: GanttSegment[];
   metrics: Metrics;
 }

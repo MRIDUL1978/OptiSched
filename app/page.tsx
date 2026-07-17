@@ -61,6 +61,7 @@ export default function CPUScheduler() {
 
       setSimulationData({
         results: data.processes,
+        gantt: data.gantt || [],
         metrics: {
           avgWait: data.metrics.averageWaitingTime,
           avgTurnaround: data.metrics.averageTurnaroundTime
@@ -102,6 +103,7 @@ export default function CPUScheduler() {
 
       setBenchmarkData(data);
     } catch (err) {
+       console.log("Stress Test Failed.", err);
       alert("Failed to run stress test");
     } finally {
       setIsBenchmarking(false);
@@ -144,6 +146,7 @@ export default function CPUScheduler() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
           <ProcessQueue
+            algorithm={algorithm}
             processes={processes}
             isBenchmarking={isBenchmarking}
             newProcess={newP}

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { SimulationData } from './types';
+import { SimulationData, GanttSegment, SimulationResult } from './types';
 
 interface GanttChartProps {
   simulationData: SimulationData | null;
@@ -10,7 +10,19 @@ const COLORS = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500',
 const GanttChart = ({ simulationData }: GanttChartProps) => {
   const maxTime = useMemo(() => {
     if (!simulationData) return 0;
-    return Math.max(...simulationData.results.map(r => r.completionTime));
+    const allTimes = simulationData.gantt.length > 0
+      ? simulationData.gantt
+      : simulationData.results;
+    return Math.max(...allTimes.map(r => r.completionTime));
+  }, [simulationData]);
+
+  const resultsById = useMemo(() => {
+    if (!simulationData) return {};
+    const map: Record<string, SimulationResult> = {};
+    for (const r of simulationData.results) {
+      map[r.id] = r;
+    }
+    return map;
   }, [simulationData]);
 
   return (
@@ -25,30 +37,39 @@ const GanttChart = ({ simulationData }: GanttChartProps) => {
         <div className="relative pt-8 pb-4 overflow-x-auto">
           <div className="relative bg-slate-950 rounded-lg border border-slate-800 min-w-[400px]">
             {(() => {
-              const uniqueIds = [...new Set(simulationData.results.map(r => r.id))];
+              const segments: GanttSegment[] = simulationData.gantt.length > 0
+                ? simulationData.gantt
+                : simulationData.results;
+
+              const uniqueIds = [...new Set(segments.map(r => r.id))];
               const idColorMap: Record<string, string> = {};
               uniqueIds.forEach((id, i) => { idColorMap[id] = COLORS[i % COLORS.length]; });
 
               return uniqueIds.map((id) => {
-                const segments = simulationData.results.filter(r => r.id === id);
+                const segs = segments.filter(r => r.id === id);
                 const color = idColorMap[id];
+                const result = resultsById[id];
 
                 return (
                   <div key={id} className="flex items-center border-b border-slate-800/50 last:border-b-0">
                     <div className="w-14 shrink-0 text-xs font-bold text-slate-400 text-center px-1 truncate">{id}</div>
                     <div className="relative h-10 flex-1">
-                      {segments.map((res, i) => {
-                        const width = ((res.completionTime - res.startTime) / maxTime) * 100;
-                        const left = (res.startTime / maxTime) * 100;
+                      {segs.map((seg, i) => {
+                        const width = ((seg.completionTime - seg.startTime) / maxTime) * 100;
+                        const left = (seg.startTime / maxTime) * 100;
+
+                        const tooltip = result
+                          ? `${seg.id} | Start: ${seg.startTime}ms | End: ${seg.completionTime}ms | Wait: ${result.waitingTime}ms | Turnaround: ${result.turnaroundTime}ms`
+                          : `${seg.id} | Start: ${seg.startTime}ms | End: ${seg.completionTime}ms`;
 
                         return (
                           <div
                             key={i}
                             className={`absolute h-full ${color} border-r border-black/20 flex items-center justify-center text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] hover:brightness-110 transition-all cursor-default`}
                             style={{ left: `${left}%`, width: `${width}%` }}
-                            title={`${res.id} | Wait: ${res.waitingTime}ms | Turnaround: ${res.turnaroundTime}ms`}
+                            title={tooltip}
                           >
-                            {width > 4 && `${res.startTime}-${res.completionTime}`}
+                            {width > 4 && `${seg.startTime}-${seg.completionTime}`}
                           </div>
                         );
                       })}

@@ -67,11 +67,6 @@ export async function POST(req: Request) {
         }
       })
 
-      cppProcess.on('error', (err) => {
-         console.error("[DEBUG] Spawn error:", err);
-         resolve(NextResponse.json({ error: `Spawn error: ${err.message}` }, { status: 500 }));
-      })
-
       cppProcess.stdin.write(inputStr);
       cppProcess.stdin.end();
 
