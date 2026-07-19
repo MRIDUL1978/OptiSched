@@ -54,7 +54,7 @@ If you wish to run the engine locally, you will need Node.js and a C++ compiler 
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/YOUR_USERNAME/OptiSched.git](https://github.com/YOUR_USERNAME/OptiSched.git)
+git clone https://github.com/MRIDUL1978/OptiSched.git
 cd OptiSched
 ```
 
