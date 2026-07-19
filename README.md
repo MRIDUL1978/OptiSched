@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+⚡ OptiSched Engine
 
-## Getting Started
+OptiSched is an advanced CPU Scheduling Simulator and Benchmarking Tool. Designed with a microservices-inspired architecture, it bridges a modern Next.js frontend with a fast native C++ core to simulate, visualize, and benchmark operating system scheduling algorithms.
 
-First, run the development server:
+🔗 Live Demo on Render https://optisched-dyh0.onrender.com/ (Note: Hosted on free tier, may take 30s to start)
 
+🚀 Features & Telemetry Modes
+
+The architecture is split into two distinct profiling strategies:
+
+Manual Simulation: Users can define specific process control blocks (Arrival, Burst, Priority) and generate precise, preemptive execution timelines (Gantt Charts) to visualize context switching and CPU allocation.
+
+Dynamic Stress Testing: A parameterized benchmarking suite capable of generating 10,000+ randomized processes. It bypasses DOM-heavy timeline rendering to aggregate macro metrics (Average Waiting Time, Turnaround Time), executing massive datasets in under 3 milliseconds.
+
+🧠 Core Architecture
+
+Unlike standard web-based simulators that run algorithms in single-threaded JavaScript, OptiSched handles compute-heavy scheduling via a native binary:
+
+The Frontend (Next.js): Handles state management, input validation, and renders complex visualizations using Tailwind CSS.
+
+The Orchestration Bridge (Node.js API): Spawns asynchronous child processes, serializes JSON payloads, and pipes data to the native engine via standard streams (stdin/stdout), ensuring the Node event loop is never blocked.
+
+The Systems Engine (C++): A memory-safe, index-based scheduling core (avoiding pointer aliasing). It accurately models real-world hardware constraints, including:
+
+Context Switch Penalties: Simulates the hardware overhead of saving/loading registers   .
+
+Asynchronous I/O Bursts: Dynamically flags a subset of workload as I/O-bound to model realistic process blocking.
+
+📊 Supported Algorithms
+
+First-Come, First-Served (FCFS): Non-preemptive baseline.
+
+Shortest Job First (SJF): Non-preemptive, mathematically optimal for minimizing wait times.
+
+Round Robin (RR): Preemptive, time-quantum based cyclic scheduling.
+
+Preemptive Priority Scheduling: Dynamically preempts active tasks based on strict integer priorities (lower number = higher priority), resolving ties via arrival time.
+
+Multilevel Feedback Queue (MLFQ): Dynamic priority decay preventing starvation.
+
+🛠️ Tech Stack
+
+Frontend: Next.js, React, Tailwind CSS, Lucide Icons
+
+Backend: Node.js API Routes
+
+Systems Core: C++17
+
+Deployment: Docker, Render (Linux Environment)
+
+⚙️ Local Installation & Setup
+
+If you wish to run the engine locally, you will need Node.js and a C++ compiler (g++) installed on your machine.
+
+1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone [https://github.com/YOUR_USERNAME/OptiSched.git](https://github.com/YOUR_USERNAME/OptiSched.git)
+cd OptiSched
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Install Node dependencies
+```bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Compile the C++ Engine
+For Windows:
+```bash
+g++ main.cpp -O2 -o engine_v2.exe
+```
 
-## Learn More
+For Linux/Mac:
+```bash
+g++ main.cpp -O2 -o engine_linux
+```
 
-To learn more about Next.js, take a look at the following resources:
+4. Start the development server
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Navigate to http://localhost:3000 in your browser.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+🐳 Docker Deployment
 
-## Deploy on Vercel
+This project is fully containerized for seamless cloud deployment. The included Dockerfile starts with a Debian Linux base, installs the C++ compiler, compiles the native engine during the build step, and serves the Next.js production build.
+```bash
+docker build -t optisched .
+docker run -p 3000:3000 optisched
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
