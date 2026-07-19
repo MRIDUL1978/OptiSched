@@ -28,7 +28,9 @@ export async function POST(req: Request) {
     }
 
     return new Promise<Response>((resolve) => {
-      const enginePath = path.join(process.cwd(), 'engine_v2.exe')
+      const isWindows = process.platform === 'win32';
+      const engineName = isWindows ? 'engine_v2.exe' : 'engine_linux';
+      const enginePath = path.join(process.cwd(), engineName)
 
       if(!fs.existsSync(enginePath)) {
         return resolve(NextResponse.json({
