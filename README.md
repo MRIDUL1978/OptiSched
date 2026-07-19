@@ -1,10 +1,10 @@
-⚡ OptiSched Engine
+### ⚡ OptiSched Engine
 
 OptiSched is an advanced CPU Scheduling Simulator and Benchmarking Tool. Designed with a microservices-inspired architecture, it bridges a modern Next.js frontend with a fast native C++ core to simulate, visualize, and benchmark operating system scheduling algorithms.
 
 🔗 Live Demo on Render https://optisched-dyh0.onrender.com/ (Note: Hosted on free tier, may take 30s to start)
 
-🚀 Features & Telemetry Modes
+### 🚀 Features & Telemetry Modes
 
 The architecture is split into two distinct profiling strategies:
 
@@ -12,7 +12,7 @@ Manual Simulation: Users can define specific process control blocks (Arrival, Bu
 
 Dynamic Stress Testing: A parameterized benchmarking suite capable of generating 10,000+ randomized processes. It bypasses DOM-heavy timeline rendering to aggregate macro metrics (Average Waiting Time, Turnaround Time), executing massive datasets in under 3 milliseconds.
 
-🧠 Core Architecture
+### 🧠 Core Architecture
 
 Unlike standard web-based simulators that run algorithms in single-threaded JavaScript, OptiSched handles compute-heavy scheduling via a native binary:
 
@@ -26,7 +26,7 @@ Context Switch Penalties: Simulates the hardware overhead of saving/loading regi
 
 Asynchronous I/O Bursts: Dynamically flags a subset of workload as I/O-bound to model realistic process blocking.
 
-📊 Supported Algorithms
+### 📊 Supported Algorithms
 
 First-Come, First-Served (FCFS): Non-preemptive baseline.
 
@@ -38,7 +38,7 @@ Preemptive Priority Scheduling: Dynamically preempts active tasks based on stric
 
 Multilevel Feedback Queue (MLFQ): Dynamic priority decay preventing starvation.
 
-🛠️ Tech Stack
+### 🛠️ Tech Stack
 
 Frontend: Next.js, React, Tailwind CSS, Lucide Icons
 
@@ -48,7 +48,7 @@ Systems Core: C++17
 
 Deployment: Docker, Render (Linux Environment)
 
-⚙️ Local Installation & Setup
+### ⚙️ Local Installation & Setup
 
 If you wish to run the engine locally, you will need Node.js and a C++ compiler (g++) installed on your machine.
 
@@ -82,7 +82,7 @@ npm run dev
 
 Navigate to http://localhost:3000 in your browser.
 
-🐳 Docker Deployment
+### 🐳 Docker Deployment
 
 This project is fully containerized for seamless cloud deployment. The included Dockerfile starts with a Debian Linux base, installs the C++ compiler, compiles the native engine during the build step, and serves the Next.js production build.
 ```bash
